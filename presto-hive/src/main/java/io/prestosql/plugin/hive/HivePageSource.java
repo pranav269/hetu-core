@@ -307,6 +307,7 @@ public class HivePageSource
 
     private List<Map<Integer, ColumnHandle>> getEligibleColumnsForRowFiltering(int channelCount, List<Map<ColumnHandle, DynamicFilter>> dynamicFilters)
     {
+        boolean eligibleFilterFound = false;
         List<Map<Integer, ColumnHandle>> eligibleColumnsList = new ArrayList<>();
         for (Map<ColumnHandle, DynamicFilter> dynamicFilter : dynamicFilters) {
             Map<Integer, ColumnHandle> eligibleColumns = new HashMap<>();
@@ -318,9 +319,15 @@ public class HivePageSource
                     }
                 }
             }
-            if (!eligibleColumns.isEmpty()) {
-                eligibleColumnsList.add(eligibleColumns);
+
+            if (eligibleColumns.size() > 0) {
+                eligibleFilterFound = true;
             }
+            eligibleColumnsList.add(eligibleColumns);
+        }
+
+        if (eligibleFilterFound == false) {
+            return new ArrayList<>();
         }
         return eligibleColumnsList;
     }
@@ -330,7 +337,7 @@ public class HivePageSource
         boolean[] result = new boolean[page.getPositionCount()];
         Arrays.fill(result, Boolean.FALSE);
         // loop to handle union of filters if any
-        for (int j = 0; j < eligibleColumns.size(); j++) {
+        for (int j = 0; j < dynamicFilters.size(); j++) {
             boolean[] filterResult = new boolean[page.getPositionCount()];
             Arrays.fill(filterResult, Boolean.TRUE);
             for (Map.Entry<Integer, ColumnHandle> column : eligibleColumns.get(j).entrySet()) {

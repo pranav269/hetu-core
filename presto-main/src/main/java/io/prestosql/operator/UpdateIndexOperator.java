@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020. Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2018-2021. Huawei Technologies Co., Ltd. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -40,7 +40,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -350,11 +349,9 @@ public class UpdateIndexOperator
             }
             this.updateIndexMetadata = updateIndexMetadata;
 
-            CreateIndexMetadata.Level createLevel;
-            Optional<String> createLevelString = indexRecord.propertiesAsList.stream().filter(s -> s.toLowerCase(Locale.ROOT).contains("level=")).findAny();
-            createLevel = CreateIndexMetadata.Level.valueOf(createLevelString.get().replaceAll(".*=", ""));
+            // any new properties from UpdateIndexMetadata should override the existing IndexRecord's properties
+            // except the level property, since that can not be changed after
             Properties updatedProperties = indexRecord.getProperties();
-
             updateIndexMetadata.getProperties().forEach((key, val) -> {
                 if (!key.toString().toLowerCase(Locale.ROOT).equals("level")) {
                     updatedProperties.setProperty(key.toString(), val.toString());
@@ -371,7 +368,7 @@ public class UpdateIndexOperator
                     indexRecord.partitions,
                     updatedProperties,
                     updateIndexMetadata.getUser(),
-                    createLevel);
+                    indexRecord.getLevel());
 
             this.heuristicIndexerManager = requireNonNull(heuristicIndexerManager, "heuristicIndexerManager is null");
             try {

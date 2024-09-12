@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020. Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2018-2021. Huawei Technologies Co., Ltd. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -117,13 +117,13 @@ public class TestHetuMetastoreGlobalCache
             launcherConfigFile.delete();
             launcherConfigFile.createNewFile();
         }
-        FileWriter configWriter = new FileWriter(STATE_STORE_CONFIGURATION_PATH);
-        configWriter.write("state-store.type=hazelcast\n" +
-                "state-store.name=test\n" +
-                "state-store.cluster=test-cluster\n" +
-                "hazelcast.discovery.mode=tcp-ip\n" +
-                "hazelcast.discovery.port=" + PORT1 + "\n");
-        configWriter.close();
+        try (FileWriter configWriter = new FileWriter(STATE_STORE_CONFIGURATION_PATH)) {
+            configWriter.write("state-store.type=hazelcast\n" +
+                    "state-store.name=test\n" +
+                    "state-store.cluster=test-cluster\n" +
+                    "hazelcast.discovery.mode=tcp-ip\n" +
+                    "hazelcast.discovery.port=" + PORT1 + "\n");
+        }
     }
 
     @BeforeTest

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020. Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2018-2021. Huawei Technologies Co., Ltd. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -41,7 +41,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -166,8 +165,8 @@ public class IndexCache
                     if (oldIndexMap.get(newIndexRecord.name) != newIndexRecord.lastModifiedTime) {
                         // update operation
                         updated = true;
+                        evictFromCache(newIndexRecord);
                         if (newIndexRecord.isAutoloadEnabled()) {
-                            evictFromCache(newIndexRecord);
                             preloadIndex(newIndexRecord);
                             LOG.debug("Index {%s} has been updated in cache.", newIndexRecord);
                         }
@@ -203,7 +202,7 @@ public class IndexCache
         String table = record.qualifiedTable;
         String column = String.join(",", record.columns);
         String type = record.indexType;
-        CreateIndexMetadata.Level level = CreateIndexMetadata.Level.valueOf(record.getProperty(CreateIndexMetadata.LEVEL_PROP_KEY).toUpperCase(Locale.ROOT));
+        CreateIndexMetadata.Level level = record.getLevel();
 
         String filterKeyPath = table + "/" + column + "/" + type;
         IndexCacheKey filterKey = new IndexCacheKey(filterKeyPath, LAST_MODIFIED_TIME_PLACE_HOLDER, record, level);
@@ -232,7 +231,7 @@ public class IndexCache
                             Path indexUri = Paths.get(index.getUri());
                             String partition = null;
                             // get partition name from path if present
-                            for (int i = indexUri.getNameCount() - 1; i >= 0; i--) {
+                            for (int i = 0; i < indexUri.getNameCount(); i++) {
                                 if (indexUri.getName(i).toString().contains("=")) {
                                     partition = indexUri.getName(i).toString();
                                     break;

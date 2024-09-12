@@ -4,9 +4,11 @@
 
     <!-- Notices -->
     <fileSet to="/">
-        <directory path="${basedir}">
+        <directory path="${basedir}/../">
+            <include>README.md</include>
+        </directory>
+        <directory path="${basedir}/../license/">
             <include>NOTICE</include>
-            <include>README.txt</include>
             <include>THIRD_PARTY_OPEN_SOURCE_SOFTWARE_NOTICE</include>
         </directory>
     </fileSet>
@@ -316,6 +318,11 @@
 
     <artifactSet to="plugin/clickhouse">
         <artifact id="${project.groupId}:hetu-clickhouse:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
+    <artifactSet to="plugin/kylin">
+        <artifact id="${project.groupId}:hetu-kylin:zip:${project.version}">
             <unpack />
         </artifact>
     </artifactSet>

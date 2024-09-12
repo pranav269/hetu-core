@@ -168,6 +168,7 @@ import io.prestosql.sql.tree.ShowSchemas;
 import io.prestosql.sql.tree.ShowSession;
 import io.prestosql.sql.tree.ShowStats;
 import io.prestosql.sql.tree.ShowTables;
+import io.prestosql.sql.tree.ShowViews;
 import io.prestosql.sql.tree.SimpleCaseExpression;
 import io.prestosql.sql.tree.SimpleGroupBy;
 import io.prestosql.sql.tree.SingleColumn;
@@ -207,6 +208,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -353,12 +355,37 @@ class AstBuilder
             throw new IllegalArgumentException("Missing property: AGGREGATIONS");
         }
 
+        List<Identifier> decomposedGroupingSet = new ArrayList<>();
+        groupingSet.forEach(groupItem -> {
+            decomposedGroupingSet.add(new Identifier(groupItem.getLocation().get(), groupItem.getValue().toLowerCase(Locale.ENGLISH), groupItem.isDelimited()));
+        });
+
         Set<FunctionCall> decomposedAggregations = new LinkedHashSet<>();
         aggregations.forEach(aggItem -> {
+            List<Expression> listArguments = aggItem.getArguments();
+            List<Expression> newArguments = new ArrayList<>();
+            for (Expression argument : listArguments) {
+                if (argument instanceof Identifier) {
+                    newArguments.add(new Identifier(argument.getLocation().get(), ((Identifier) argument).getValue().toLowerCase(Locale.ENGLISH),
+                            ((Identifier) argument).isDelimited()));
+                }
+                else {
+                    newArguments.add(argument);
+                }
+            }
+
             if (!"avg".equals(aggItem.getName().toString())) {
-                decomposedAggregations.add(aggItem);
+                decomposedAggregations.add(new FunctionCall(
+                        aggItem.getLocation(),
+                        aggItem.getName(),
+                        aggItem.getWindow(),
+                        aggItem.getFilter(),
+                        aggItem.getOrderBy(),
+                        aggItem.isDistinct(),
+                        newArguments));
             }
             else {
+                decomposedAggregations.add(aggItem);
                 decomposedAggregations.add(new FunctionCall(
                         aggItem.getLocation(),
                         QualifiedName.of("sum"),
@@ -366,7 +393,7 @@ class AstBuilder
                         aggItem.getFilter(),
                         aggItem.getOrderBy(),
                         aggItem.isDistinct(),
-                        aggItem.getArguments()));
+                        newArguments));
                 decomposedAggregations.add(new FunctionCall(
                         aggItem.getLocation(),
                         QualifiedName.of("count"),
@@ -374,10 +401,10 @@ class AstBuilder
                         aggItem.getFilter(),
                         aggItem.getOrderBy(),
                         aggItem.isDistinct(),
-                        aggItem.getArguments()));
+                        newArguments));
             }
         });
-        return new CreateCube(getLocation(context), cubeName, sourceTableName, groupingSet, decomposedAggregations, context.EXISTS() != null, properties, optionalExpression, sourceFilterPredicate.orElse(null));
+        return new CreateCube(getLocation(context), cubeName, sourceTableName, decomposedGroupingSet, decomposedAggregations, context.EXISTS() != null, properties, optionalExpression, sourceFilterPredicate.orElse(null));
     }
 
     @Override
@@ -2186,6 +2213,19 @@ class AstBuilder
     public Node visitPathSpecification(SqlBaseParser.PathSpecificationContext context)
     {
         return new PathSpecification(getLocation(context), visit(context.pathElement(), PathElement.class));
+    }
+
+    @Override
+    public Node visitShowViews(SqlBaseParser.ShowViewsContext context)
+    {
+        return new ShowViews(
+                getLocation(context),
+                Optional.ofNullable(context.qualifiedName())
+                        .map(this::getQualifiedName),
+                getTextIfPresent(context.pattern)
+                        .map(AstBuilder::unquote),
+                getTextIfPresent(context.escape)
+                        .map(AstBuilder::unquote));
     }
 
     // ***************** helpers *****************

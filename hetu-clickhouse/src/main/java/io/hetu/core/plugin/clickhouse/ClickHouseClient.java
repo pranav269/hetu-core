@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020. Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2018-2021. Huawei Technologies Co., Ltd. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -297,8 +297,9 @@ public class ClickHouseClient
                 handle.getSchemaTableName().getSchemaName(),
                 handle.getSchemaTableName().getTableName());
 
-        try (Connection connection = connectionFactory.openConnection(JdbcIdentity.from(session))) {
-            ResultSet resultSet = getPreparedStatement(connection, sql).executeQuery();
+        try (Connection connection = connectionFactory.openConnection(JdbcIdentity.from(session));
+                PreparedStatement preparedStatement = getPreparedStatement(connection, sql)) {
+            ResultSet resultSet = preparedStatement.executeQuery();
             if (resultSet.next()) {
                 String updateTime = resultSet.getString("modified_time");
                 SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");

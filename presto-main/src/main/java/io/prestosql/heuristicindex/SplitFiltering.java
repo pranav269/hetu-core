@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020. Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2018-2021. Huawei Technologies Co., Ltd. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -22,7 +22,6 @@ import io.prestosql.execution.SqlStageExecution;
 import io.prestosql.metadata.Split;
 import io.prestosql.spi.HetuConstant;
 import io.prestosql.spi.connector.ColumnHandle;
-import io.prestosql.spi.connector.CreateIndexMetadata;
 import io.prestosql.spi.function.BuiltInFunctionHandle;
 import io.prestosql.spi.function.FunctionHandle;
 import io.prestosql.spi.function.OperatorType;
@@ -62,7 +61,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
@@ -132,7 +130,6 @@ public class SplitFiltering
 
         for (IndexRecord record : indexToPreload) {
             LOG.info("Preloading index for split filtering: " + record);
-            CreateIndexMetadata.Level indexLevel = CreateIndexMetadata.Level.valueOf(record.getProperty(CreateIndexMetadata.LEVEL_PROP_KEY).toUpperCase(Locale.ROOT));
             indexCache.preloadIndex(record);
         }
     }
@@ -313,14 +310,22 @@ public class SplitFiltering
             for (Map.Entry<String, List<Split>> entry : partitionSplitMap.entrySet()) {
                 String partitionKey = entry.getKey();
 
-                if (!indexMaxLastUpdated.containsKey(partitionKey) // the partition is not indexed by its own partition's index
-                        && indexMaxLastUpdated.size() != 1 // or a table-level index)
-                        && !indexMaxLastUpdated.containsKey(TABLE_LEVEL_KEY)) {
+                // the partition is indexed by its own partition's index
+                boolean partitionHasOwnIndex = indexMaxLastUpdated.containsKey(partitionKey);
+                // the partition is covered by a table-level index
+                boolean partitionHasTableLevelIndex = indexMaxLastUpdated.size() == 1 && indexMaxLastUpdated.containsKey(TABLE_LEVEL_KEY);
+
+                if (!partitionHasOwnIndex && !partitionHasTableLevelIndex) {
                     filteredSplits.addAll(entry.getValue());
                 }
                 else {
-                    long indexLastModifiedTimeOfThisPartition = indexMaxLastUpdated.size() == 1 && indexMaxLastUpdated.containsKey(TABLE_LEVEL_KEY) ?
-                            indexMaxLastUpdated.get(TABLE_LEVEL_KEY) : indexMaxLastUpdated.get(partitionKey);
+                    long indexLastModifiedTimeOfThisPartition;
+                    if (partitionHasOwnIndex) {
+                        indexLastModifiedTimeOfThisPartition = indexMaxLastUpdated.get(partitionKey);
+                    }
+                    else {
+                        indexLastModifiedTimeOfThisPartition = indexMaxLastUpdated.get(TABLE_LEVEL_KEY);
+                    }
 
                     for (Split split : entry.getValue()) {
                         String filePathStr = new URI(split.getConnectorSplit().getFilePath()).getPath();
@@ -346,7 +351,7 @@ public class SplitFiltering
 
             return filteredSplits;
         }
-        catch (Exception e) {
+        catch (Throwable e) {
             LOG.debug("Exception occurred while filtering. Returning original splits", e);
             return inputSplits;
         }

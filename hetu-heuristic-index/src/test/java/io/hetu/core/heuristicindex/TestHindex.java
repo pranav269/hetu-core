@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020. Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2018-2021. Huawei Technologies Co., Ltd. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import static org.testng.Assert.assertTrue;
 public class TestHindex
         extends TestIndexResources
 {
-    private static final long INDEX_LOAD_WAIT_TIME = 500;
+    private static final long INDEX_LOAD_WAIT_TIME = 600;
 
     // Tests the supported data types with the different index types while queries utilize the BETWEEN operator.
     // Tests omit BitmapIndex because BitmapIndex's row filtering should have combined inserts, it is tested separately

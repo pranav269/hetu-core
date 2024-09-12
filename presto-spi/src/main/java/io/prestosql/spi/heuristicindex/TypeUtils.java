@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020. Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2018-2021. Huawei Technologies Co., Ltd. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -16,6 +16,7 @@
 package io.prestosql.spi.heuristicindex;
 
 import io.airlift.slice.Slice;
+import io.airlift.slice.Slices;
 import io.prestosql.spi.function.BuiltInFunctionHandle;
 import io.prestosql.spi.relation.CallExpression;
 import io.prestosql.spi.relation.ConstantExpression;
@@ -82,8 +83,14 @@ public class TypeUtils
                 checkState(value instanceof Long);
                 return new BigDecimal(BigInteger.valueOf((Long) value), decimalType.getScale(), new MathContext(decimalType.getPrecision()));
             }
-            checkState(value instanceof Slice);
-            Slice slice = (Slice) value;
+            Slice slice;
+            if (value instanceof String) {
+                slice = Slices.utf8Slice((String) value);
+            }
+            else {
+                checkState(value instanceof Slice);
+                slice = (Slice) value;
+            }
             return new BigDecimal(decodeUnscaledValue(slice), decimalType.getScale(), new MathContext(decimalType.getPrecision()));
         }
         else if (type instanceof TimestampType) {

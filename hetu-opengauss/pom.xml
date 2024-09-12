@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>presto-root</artifactId>
         <groupId>io.hetu.core</groupId>
-        <version>1.4.0-SNAPSHOT</version>
+        <version>1.5.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -54,6 +53,11 @@
         <dependency>
             <groupId>javax.inject</groupId>
             <artifactId>javax.inject</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
         </dependency>
 
         <!-- Presto SPI -->
@@ -153,7 +157,7 @@
         <dependency>
             <groupId>io.hetu.core</groupId>
             <artifactId>presto-postgresql</artifactId>
-            <version>1.4.0-SNAPSHOT</version>
+            <version>1.5.0-SNAPSHOT</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -172,7 +176,7 @@
         <dependency>
             <groupId>io.hetu.core</groupId>
             <artifactId>presto-postgresql</artifactId>
-            <version>1.4.0-SNAPSHOT</version>
+            <version>1.5.0-SNAPSHOT</version>
             <classifier>tests</classifier>
             <scope>test</scope>
             <exclusions>
@@ -207,16 +211,13 @@
                         <phase>package</phase>
                         <configuration>
                             <target>
-                                <echo message="unjar"/>
-                                <unzip src="${project.build.directory}/${project.artifactId}-${project.version}/presto-postgresql-${project.version}.jar"
-                                       dest="${project.build.directory}/unpacked/"/>
-                                <echo message="delete spi file"/>
-                                <delete dir="${project.build.directory}/unpacked/META-INF/services"/>
-                                <echo message="Redo jar"/>
-                                <jar destfile="${project.build.directory}/${project.artifactId}-${project.version}/presto-postgresql-${project.version}.jar"
-                                     basedir="${project.build.directory}/unpacked"/>
-                                <zip basedir="${project.build.directory}/${project.artifactId}-${project.version}"
-                                     destfile="${project.build.directory}/${project.artifactId}-${project.version}.zip"/>
+                                <echo message="unjar" />
+                                <unzip src="${project.build.directory}/${project.artifactId}-${project.version}/presto-postgresql-${project.version}.jar" dest="${project.build.directory}/unpacked/" />
+                                <echo message="delete spi file" />
+                                <delete dir="${project.build.directory}/unpacked/META-INF/services" />
+                                <echo message="Redo jar" />
+                                <jar destfile="${project.build.directory}/${project.artifactId}-${project.version}/presto-postgresql-${project.version}.jar" basedir="${project.build.directory}/unpacked" />
+                                <zip basedir="${project.build.directory}/${project.artifactId}-${project.version}" destfile="${project.build.directory}/${project.artifactId}-${project.version}.zip" />
                             </target>
                         </configuration>
                         <goals>

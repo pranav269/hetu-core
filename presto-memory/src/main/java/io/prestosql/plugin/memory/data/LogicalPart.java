@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020. Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2018-2021. Huawei Technologies Co., Ltd. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,6 +15,7 @@
 package io.prestosql.plugin.memory.data;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.io.BaseEncoding;
 import io.airlift.json.JsonCodec;
 import io.airlift.log.Logger;
 import io.airlift.slice.InputStreamSliceInput;
@@ -22,6 +23,7 @@ import io.airlift.slice.OutputStreamSliceOutput;
 import io.airlift.slice.Slice;
 import io.airlift.slice.SliceInput;
 import io.airlift.slice.SliceOutput;
+import io.airlift.slice.Slices;
 import io.airlift.units.DataSize;
 import io.hetu.core.transport.execution.buffer.PagesSerde;
 import io.hetu.core.transport.execution.buffer.PagesSerdeUtil;
@@ -589,14 +591,46 @@ public class LogicalPart
             return null;
         }
 
+        /*
+        This part of the code tries to include any additional "lower" pages that may contain our value(s)
+        Consider the following example (only showing the sorted column's values):
+        pages = pg1[a,a,b] pg2[b,b,b] pg3[c,d,null] pg4[null,null,null]
+
+        sparseIdx =
+        a -> {pgs=[1], last=b}
+        b -> {pgs=[2], last=b}
+        c -> {pgs=[3], last=null}
+
+        if user query is col=d, the sparseIdx returns no match, but we must also look floor entry of d,
+        i.e. entry c -> {pgs=[3], last=null}
+
+        in entry c the last value is null, so instead of looking through all the values in the page
+        we just return lastPageIdx (the else part below)
+
+        Consider another example:
+        pages = 1[a,a,b] 2[b,b,b] 3[c,d,e] 4[null,null,null]
+
+        sparseIdx =
+        a -> {pgs=[1], last=b}
+        b -> {pgs=[2], last=b}
+        c -> {pgs=[3], last=e}
+
+        In this case last value is e, so we compare with d and since value d could be in pg3 somewhere, we return lastPageIdx
+        */
+
         List<Integer> lowerPages = lowerSparseEntry.getValue().getPageIndices();
         Integer lastPageIdx = lowerPages.get(lowerPages.size() - 1);
         Comparable lastPageLastValue = lowerSparseEntry.getValue().getLast();
-        int comp = (lastPageLastValue).compareTo(lowBound);
-        if (comp > 0 || (comp == 0 && includeLowBound)) {
+        if (lastPageLastValue != null) {
+            int comp = (lastPageLastValue).compareTo(lowBound);
+            if (comp > 0 || (comp == 0 && includeLowBound)) {
+                return lastPageIdx;
+            }
+        }
+        else {
+            // if lastPageLastValue is null, null is larger than any value
             return lastPageIdx;
         }
-
         return null;
     }
 
@@ -888,6 +922,40 @@ public class LogicalPart
         return processingState;
     }
 
+    static Map<String, Page> partitionPage(Page page, List<String> partitionedBy, List<MemoryColumnHandle> columns, TypeManager typeManager)
+    {
+        // derive the channel numbers that corresponds to the partitionedBy list
+        List<MemoryColumnHandle> partitionChannels = new ArrayList<>(partitionedBy.size());
+        for (String name : partitionedBy) {
+            for (MemoryColumnHandle handle : columns) {
+                if (handle.getColumnName().equals(name)) {
+                    partitionChannels.add(handle);
+                }
+            }
+        }
+
+        // build the partitions
+        Map<String, Page> partitions = new HashMap<>();
+
+        MemoryColumnHandle partitionColumnHandle = partitionChannels.get(0);
+        Block block = page.getBlock(partitionColumnHandle.getColumnIndex());
+        Type type = partitionColumnHandle.getType(typeManager);
+        Map<Object, ArrayList<Integer>> uniqueValues = new HashMap<>();
+        for (int i = 0; i < page.getPositionCount(); i++) {
+            Object value = getNativeValue(type, block, i);
+            uniqueValues.putIfAbsent(value, new ArrayList<>());
+            uniqueValues.get(value).add(i);
+        }
+
+        for (Map.Entry<Object, ArrayList<Integer>> valueAndPosition : uniqueValues.entrySet()) {
+            int[] retainedPositions = valueAndPosition.getValue().stream().mapToInt(i -> i).toArray();
+            Object valueKey = valueAndPosition.getKey();
+            Page subPage = page.getPositions(retainedPositions, 0, retainedPositions.length);
+            partitions.put(valueKey.toString(), subPage);
+        }
+        return partitions;
+    }
+
     private static Object getNativeValue(Object object)
     {
         return object instanceof Slice ? ((Slice) object).toStringUtf8() : object;
@@ -899,10 +967,45 @@ public class LogicalPart
         Class<?> javaType = type.getJavaType();
 
         if (obj != null && javaType == Slice.class) {
-            obj = ((Slice) obj).toStringUtf8();
+            Slice slice = (Slice) obj;
+            TypeSignature typeSig = type.getTypeSignature();
+            if (typeSig.getBase().equals("uuid")) {
+                obj = BaseEncoding.base16().encode(slice.getBytes());
+            }
+            else {
+                obj = slice.toStringUtf8();
+            }
         }
-
         return obj;
+    }
+
+    // supported partition value types: BOOLEAN, All INT Types, CHAR, VARCHAR, DOUBLE, REAL, DECIMAL, DATE, TIME, UUID
+    public static Object deserializeTypedValueFromString(Type type, String serialized)
+    {
+        if (serialized == null) {
+            return null;
+        }
+        else if (type.getJavaType() == boolean.class) {
+            return Boolean.parseBoolean(serialized);
+        }
+        else if (type.getJavaType() == long.class) {
+            return Long.parseLong(serialized);
+        }
+        else if (type.getJavaType() == double.class) {
+            return Double.parseDouble(serialized);
+        }
+        else if (type.getJavaType() == Slice.class) {
+            TypeSignature typeSig = type.getTypeSignature();
+            if (typeSig.getBase().equals("uuid")) {
+                return Slices.wrappedBuffer(BaseEncoding.base16().decode(serialized));
+            }
+            else {
+                return Slices.utf8Slice(serialized);
+            }
+        }
+        else {
+            throw new IllegalStateException("Unable to deserialize value");
+        }
     }
 
     private void readObject(ObjectInputStream in)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020. Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2018-2021. Huawei Technologies Co., Ltd. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -16,6 +16,7 @@ package io.prestosql.heuristicindex;
 
 import com.google.inject.Inject;
 import io.airlift.log.Logger;
+import io.hetu.core.common.util.SecurePathWhiteList;
 import io.prestosql.execution.QueryInfo;
 import io.prestosql.filesystem.FileSystemClientManager;
 import io.prestosql.metastore.HetuMetaStoreManager;
@@ -43,6 +44,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 public class HeuristicIndexerManager
 {
     private final FileSystemClientManager fileSystemClientManager;
@@ -66,6 +69,13 @@ public class HeuristicIndexerManager
     public static HeuristicIndexerManager getNoOpHeuristicIndexerManager()
     {
         return new HeuristicIndexerManager(new FileSystemClientManager(), new HetuMetaStoreManager());
+    }
+
+    public void initCache()
+    {
+        if (PropertyService.getBooleanProperty(HetuConstant.FILTER_ENABLED)) {
+            SplitFiltering.getCache(getIndexClient());
+        }
     }
 
     public void loadIndexFactories(IndexFactory indexFactory)
@@ -145,6 +155,15 @@ public class HeuristicIndexerManager
             String indexStoreRoot = PropertyService.getStringProperty(HetuConstant.INDEXSTORE_URI);
 
             root = Paths.get(indexStoreRoot);
+
+            // although the root is already checked in HetuConfig#getIndexStoreUri
+            // when we set and get it from PropertyService, the code scan tool loses track and complains
+            // add the check here again
+            checkArgument(!root.toString().contains("../"),
+                    HetuConstant.INDEXSTORE_URI + " must be absolute and under one of the following whitelisted directories:  " + SecurePathWhiteList.getSecurePathWhiteList().toString());
+            checkArgument(SecurePathWhiteList.isSecurePath(root),
+                    HetuConstant.INDEXSTORE_URI + " must be under one of the following whitelisted directories: " + SecurePathWhiteList.getSecurePathWhiteList().toString());
+
             fs = fileSystemClientManager.getFileSystemClient(fsProfile, root);
             if (fileSystemClientManager.isFileSystemLocal(fsProfile)) {
                 throw new IllegalArgumentException("Indexer does not support local filesystem: " + fsProfile);

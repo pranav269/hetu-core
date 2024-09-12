@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020. Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2018-2021. Huawei Technologies Co., Ltd. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -71,17 +71,23 @@ public class FileBasedSeedStoreOnYarn
         this.fs = fs;
         this.config = config;
 
-        seedFileFolder = Paths.get(config.getOrDefault(FileBasedSeedConstants.SEED_STORE_FILESYSTEM_DIR, FileBasedSeedConstants.SEED_STORE_FILESYSTEM_DIR_DEFAULT_VALUE).trim());
         try {
+            seedFileFolder = Paths.get(config.getOrDefault(FileBasedSeedConstants.SEED_STORE_FILESYSTEM_DIR, FileBasedSeedConstants.SEED_STORE_FILESYSTEM_DIR_DEFAULT_VALUE).trim());
+
             checkArgument(!seedFileFolder.toString().contains("../"),
                     "SeedStore directory path must be absolute and at user workspace " + SecurePathWhiteList.getSecurePathWhiteList().toString());
             checkArgument(SecurePathWhiteList.isSecurePath(seedFileFolder.toString()),
                     "SeedStore directory path must be at user workspace " + SecurePathWhiteList.getSecurePathWhiteList().toString());
+
+            seedFilePath = seedFileFolder.resolve(name).resolve(FileBasedSeedConstants.ON_YARN_SEED_FILE_NAME);
+            checkArgument(!seedFilePath.toString().contains("../"),
+                    "Seed file path must be absolute and at user workspace " + SecurePathWhiteList.getSecurePathWhiteList().toString());
+            checkArgument(SecurePathWhiteList.isSecurePath(seedFilePath.toString()),
+                    "Seed file path must be at user workspace " + SecurePathWhiteList.getSecurePathWhiteList().toString());
         }
         catch (IOException e) {
             throw new IllegalArgumentException("Failed to get secure path list.", e);
         }
-        seedFilePath = seedFileFolder.resolve(name).resolve(FileBasedSeedConstants.ON_YARN_SEED_FILE_NAME);
     }
 
     @Override
@@ -89,7 +95,13 @@ public class FileBasedSeedStoreOnYarn
             throws IOException
     {
         LOG.debug("FileBasedOnYarnSeedStore::add() invoked.");
-        Lock lock = new FileBasedLock(fs, seedFileFolder.resolve(name));
+        Path lockPath = seedFileFolder.resolve(name);
+        checkArgument(!lockPath.toString().contains("../"),
+                "Lock path must be absolute and at user workspace " + SecurePathWhiteList.getSecurePathWhiteList().toString());
+        checkArgument(SecurePathWhiteList.isSecurePath(lockPath.toString()),
+                "Lock path must be at user workspace " + SecurePathWhiteList.getSecurePathWhiteList().toString());
+
+        Lock lock = new FileBasedLock(fs, lockPath);
         try {
             lock.lock();
             Set<FileBasedSeed> latestSeeds = new HashSet<>();
@@ -143,7 +155,12 @@ public class FileBasedSeedStoreOnYarn
             throws IOException
     {
         LOG.debug("FileBasedOnYarnSeedStore::remove() invoked.");
-        Lock lock = new FileBasedLock(fs, seedFileFolder.resolve(name));
+        Path lockPath = seedFileFolder.resolve(name);
+        checkArgument(!lockPath.toString().contains("../"),
+                "Lock path must be absolute and at user workspace " + SecurePathWhiteList.getSecurePathWhiteList().toString());
+        checkArgument(SecurePathWhiteList.isSecurePath(lockPath.toString()),
+                "Lock path must be at user workspace " + SecurePathWhiteList.getSecurePathWhiteList().toString());
+        Lock lock = new FileBasedLock(fs, lockPath);
         try {
             lock.lock();
             Set<Seed> outputs = new HashSet<>();

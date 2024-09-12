@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020. Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2018-2021. Huawei Technologies Co., Ltd. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -116,7 +116,7 @@ public class JdbcUpdatablePageSource
 
             boolean autoCommitFlag = connection.getAutoCommit();
             connection.setAutoCommit(false);
-            try (PreparedStatement statement = connection.prepareStatement(jdbcClient.buildUpdateSql(handle, updatedColumns.size(), updatedColumns))) {
+            try (PreparedStatement statement = connection.prepareStatement(jdbcClient.buildUpdateSql(this.session, handle, updatedColumns.size(), updatedColumns))) {
                 int batchSize = 0;
                 for (int position = 0; position < rowIds.getPositionCount(); position++) {
                     jdbcClient.setUpdateSql(this.session, this.handle, statement, columnValueAndRowIdBlock, position, updatedColumns);
